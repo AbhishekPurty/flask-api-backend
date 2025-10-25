@@ -30,6 +30,20 @@ def set_finalized():
     supabase.table(TABLE).update({"ConsultationFinalized": val}).eq("id", ROW_ID).execute()
     return jsonify({"ok": True, "finalized": val}), 200
 
+@app.get("/api/architect-meeting")
+def get_architect_meeting():
+    res = supabase.table(TABLE).select("ArchitectMeetingDone").eq("id", ROW_ID).single().execute()
+    val = bool(res.data["ArchitectMeetingDone"])
+    return jsonify({"architect_meeting_done": val}), 200
+
+@app.post("/api/architect-meeting")
+def set_architect_meeting():
+    data = request.get_json(silent=True) or {}
+    val = bool(data.get("architect_meeting_done", False))
+    supabase.table(TABLE).update({"ArchitectMeetingDone": val}).eq("id", ROW_ID).execute()
+    return jsonify({"ok": True, "architect_meeting_done": val}), 200
+
+
 # Minimal admin HTML
 ADMIN_HTML = """
 <!doctype html>
@@ -78,6 +92,39 @@ ADMIN_HTML = """
       document.getElementById('refresh').addEventListener('click', load);
       load();
     </script>
+
+    <h2>Architect Meeting Done</h2>
+<div class="row">
+  <input id="chk_arch" type="checkbox" />
+  <span id="lbl_arch" class="muted">Loading…</span>
+  <button id="refresh_arch" class="btn">Refresh</button>
+</div>
+
+<script>
+  async function loadArchitect() {
+    const r = await fetch('/api/architect-meeting');
+    const j = await r.json();
+    const chk = document.getElementById('chk_arch');
+    const lbl = document.getElementById('lbl_arch');
+    chk.checked = !!j.architect_meeting_done;
+    lbl.textContent = j.architect_meeting_done ? 'True' : 'False';
+  }
+  async function saveArchitect() {
+    const chk = document.getElementById('chk_arch');
+    const lbl = document.getElementById('lbl_arch');
+    await fetch('/api/architect-meeting', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ architect_meeting_done: chk.checked })
+    });
+    lbl.textContent = chk.checked ? 'True' : 'False';
+  }
+  document.getElementById('chk_arch').addEventListener('change', saveArchitect);
+  document.getElementById('refresh_arch').addEventListener('click', loadArchitect);
+  loadArchitect();
+</script>
+
+
   </body>
 </html>
 """
