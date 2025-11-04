@@ -55,21 +55,22 @@ def set_architect_meeting():
 
 
 # -----------------------------
-# Meeting Done
+# Meeting Done (3-state: True / False / NULL)
 # -----------------------------
 @app.get("/api/meeting-done")
 def get_meeting_done():
     res = supabase.table(TABLE).select("MeetingDone").eq("id", ROW_ID).single().execute()
-    val = bool(res.data.get("MeetingDone")) if res.data else False
-    return jsonify({"meeting_done": val}), 200
+    meeting_val = res.data.get("MeetingDone") if res.data else None
+    return jsonify({"meeting_done": meeting_val}), 200
 
 
 @app.post("/api/meeting-done")
 def set_meeting_done():
     data = request.get_json(silent=True) or {}
-    val = bool(data.get("meeting_done", False))
-    supabase.table(TABLE).update({"MeetingDone": val}).eq("id", ROW_ID).execute()
-    return jsonify({"ok": True, "meeting_done": val}), 200
+    # Allow True, False, or None
+    meeting_val = data.get("meeting_done", None)
+    supabase.table(TABLE).update({"MeetingDone": meeting_val}).eq("id", ROW_ID).execute()
+    return jsonify({"ok": True, "meeting_done": meeting_val}), 200
 
 
 # -----------------------------
@@ -107,12 +108,17 @@ ADMIN_HTML = """
 
     <h2>Meeting Done</h2>
     <div class="row">
-      <input id="chk_meet" type="checkbox" />
+      <select id="select_meet">
+        <option value="null">Not Set (NULL)</option>
+        <option value="true">True</option>
+        <option value="false">False</option>
+      </select>
       <span id="lbl_meet" class="muted">Loading…</span>
       <button id="refresh_meet" class="btn">Refresh</button>
     </div>
 
     <script>
+      // ---- Consultation Finalized ----
       async function load() {
         const r = await fetch('/api/finalized');
         const j = await r.json();
@@ -133,6 +139,7 @@ ADMIN_HTML = """
         lbl.textContent = chk.checked ? 'True' : 'False';
       }
 
+      // ---- Architect Meeting Done ----
       async function loadArchitect() {
         const r = await fetch('/api/architect-meeting');
         const j = await r.json();
@@ -153,33 +160,49 @@ ADMIN_HTML = """
         lbl.textContent = chk.checked ? 'True' : 'False';
       }
 
+      // ---- Meeting Done (3-state) ----
       async function loadMeeting() {
         const r = await fetch('/api/meeting-done');
         const j = await r.json();
-        const chk = document.getElementById('chk_meet');
+        const sel = document.getElementById('select_meet');
         const lbl = document.getElementById('lbl_meet');
-        chk.checked = !!j.meeting_done;
-        lbl.textContent = j.meeting_done ? 'True' : 'False';
+        if (j.meeting_done === true) {
+          sel.value = 'true';
+          lbl.textContent = 'True';
+        } else if (j.meeting_done === false) {
+          sel.value = 'false';
+          lbl.textContent = 'False';
+        } else {
+          sel.value = 'null';
+          lbl.textContent = 'Not Set';
+        }
       }
 
       async function saveMeeting() {
-        const chk = document.getElementById('chk_meet');
+        const sel = document.getElementById('select_meet');
         const lbl = document.getElementById('lbl_meet');
+        let val = null;
+        if (sel.value === 'true') val = true;
+        else if (sel.value === 'false') val = false;
+
         await fetch('/api/meeting-done', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ meeting_done: chk.checked })
+          body: JSON.stringify({ meeting_done: val })
         });
-        lbl.textContent = chk.checked ? 'True' : 'False';
+
+        lbl.textContent = sel.value === 'null' ? 'Not Set' : sel.value.charAt(0).toUpperCase() + sel.value.slice(1);
       }
 
+      // ---- Event bindings ----
       document.getElementById('chk').addEventListener('change', save);
       document.getElementById('refresh').addEventListener('click', load);
       document.getElementById('chk_arch').addEventListener('change', saveArchitect);
       document.getElementById('refresh_arch').addEventListener('click', loadArchitect);
-      document.getElementById('chk_meet').addEventListener('change', saveMeeting);
+      document.getElementById('select_meet').addEventListener('change', saveMeeting);
       document.getElementById('refresh_meet').addEventListener('click', loadMeeting);
 
+      // ---- Initial load ----
       load();
       loadArchitect();
       loadMeeting();
